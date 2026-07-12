@@ -48,16 +48,19 @@ pub async fn find(name: &str) -> Result<Device> {
         .ok_or(str!("Device '{name}' not found").into())
 }
 
-fn find_recursive<'a>(devices: &'a [Device], name: &str) -> Option<&'a Device> {
+fn find_recursive<'a>(devices: &'a [Device], target: &str) -> Option<&'a Device> {
     for device in devices {
-        if device.path.as_deref() == Some(name) || device.label.as_deref() == Some(name) {
+        if device.path.as_deref() == Some(target)
+            || device.label.as_deref() == Some(target)
+            || device.uuid.as_deref() == Some(target)
+            || device.name == target
+        {
             return Some(device);
         }
 
-        if let Some(found) = find_recursive(&device.children, name) {
+        if let Some(found) = find_recursive(&device.children, target) {
             return Some(found);
         }
     }
-
     None
 }

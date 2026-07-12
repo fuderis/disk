@@ -7,4 +7,8 @@ use macron::{Display, Error, From};
 pub enum Error {
     #[display(fmt = "Unsupported operating system")]
     UnsupportedOS,
+
+    #[from(skip)]
+    #[display(fmt = "Operational error: {0}")]
+    Operational(String),
 }

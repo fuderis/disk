@@ -8,7 +8,7 @@ pub async fn handle_mount(device: String, open: bool) -> Result<()> {
     let dev = lsblk::find(&device).await?;
 
     if let Some(mount) = dev.mountpoint.as_deref() {
-        println!("{} Already mounted at {}", "✓".green().bold(), mount.blue());
+        println!("{} Already mounted at {}", " ->".green(), mount.blue());
 
         if open {
             let _ = Command::new("xdg-open").arg(mount).spawn();
@@ -19,7 +19,7 @@ pub async fn handle_mount(device: String, open: bool) -> Result<()> {
 
     let dev_path = match dev.path.as_deref() {
         Some(path) => path,
-        None => return Err(str!("Device path is missing.").into()),
+        None => return Err(Error::Operational(str!("Device path is missing.")).into()),
     };
 
     let mount_name = dev
@@ -37,7 +37,7 @@ pub async fn handle_mount(device: String, open: bool) -> Result<()> {
         .await?;
 
     if !status.success() {
-        return Err(str!("Failed to create mount directory.").into());
+        return Err(Error::Operational(str!("Failed to create mount directory.")).into());
     }
 
     println!("{} {} {}", "==>".blue(), "Mounting".bold(), dev_path.blue());
@@ -58,7 +58,10 @@ pub async fn handle_mount(device: String, open: bool) -> Result<()> {
     }
 
     if status.code() == Some(124) {
-        return Err(str!("Mount timed out. The filesystem is probably locked.").into());
+        return Err(Error::Operational(str!(
+            "Mount timed out. The filesystem is probably locked."
+        ))
+        .into());
     }
 
     println!(
@@ -85,7 +88,12 @@ pub async fn handle_mount(device: String, open: bool) -> Result<()> {
         return Ok(());
     }
 
-    Err(str!("Failed to mount '{}'. Try 'disk fix {}'.", device, device).into())
+    Err(Error::Operational(str!(
+        "Failed to mount '{}'. Try 'disk fix {}'.",
+        device,
+        device
+    ))
+    .into())
 }
 
 pub async fn handle_unmount(device: String) -> Result<()> {
@@ -93,7 +101,7 @@ pub async fn handle_unmount(device: String) -> Result<()> {
 
     let dev_path = match dev.path.as_deref() {
         Some(path) => path,
-        None => return Err(str!("Device path is missing.").into()),
+        None => return Err(Error::Operational(str!("Device path is missing.")).into()),
     };
 
     let mountpoint = dev.mountpoint.clone();
@@ -104,7 +112,7 @@ pub async fn handle_unmount(device: String) -> Result<()> {
         .await?;
 
     if !status.success() {
-        return Err(str!("Failed to unmount '{}'.", device).into());
+        return Err(Error::Operational(str!("Failed to unmount '{}'.", device)).into());
     }
 
     if let Some(path) = mountpoint {
@@ -113,7 +121,7 @@ pub async fn handle_unmount(device: String) -> Result<()> {
         }
     }
 
-    println!("{} Unmounted {}", "✓".green().bold(), dev_path.blue(),);
+    println!("{} Unmounted {}", " ->".green(), dev_path.blue(),);
 
     Ok(())
 }

@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 use prelude::*;
 
 pub const APP_NAME: &str = "disk";
-pub const APP_VERSION: &str = "0.1.0";
+pub const APP_VERSION: &str = "0.1.1";
 
 #[derive(Parser, Debug)]
 #[command(
@@ -54,6 +54,28 @@ pub enum Commands {
         /// Device path or filesystem label
         device: String,
     },
+
+    /// Backup source directory to target disk(s)
+    Backup {
+        /// Source path to backup (defaults to current directory)
+        source_path: Option<String>,
+
+        /// Subdirectory name on target drive (defaults to settings.default_label)
+        destination_path: Option<String>,
+
+        /// Target disk(s) identifier, label, or UUID. Can be specified multiple times
+        /// (if not provided, uses 'backup_disks' from settings)
+        #[arg(short, long)]
+        target: Vec<String>,
+
+        /// Folders to exclude from backup (can be specified multiple times)
+        #[arg(short, long)]
+        exclude: Vec<String>,
+
+        /// Open destination folder after backup
+        #[arg(short, long)]
+        open: bool,
+    },
 }
 
 #[tokio::main]
@@ -69,6 +91,15 @@ async fn main() -> Result<()> {
         Commands::Mount { open, device } => cmds::mount::handle_mount(device, open).await,
         Commands::Unmount { device } => cmds::mount::handle_unmount(device).await,
         Commands::Repair { device } => cmds::fix::handle_repair(device).await,
+        Commands::Backup {
+            source_path,
+            destination_path,
+            target,
+            exclude,
+            open,
+        } => {
+            cmds::backup::handle_backup(source_path, destination_path, target, exclude, open).await
+        }
     };
 
     if let Err(e) = result {

@@ -3,24 +3,26 @@ use crate::prelude::*;
 /// The settings instance
 static SETTINGS: State<Config<Settings>> = State::default();
 
-// /// The some options
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// pub struct PrintOptions {
-//     pub message: String,
-// }
+/// The some options
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BackupOptions {
+    pub default_disks: Vec<String>,
+    pub default_dir: String,
+}
 
-// impl ::std::default::Default for PrintOptions {
-//     fn default() -> Self {
-//         Self {
-//             message: str!("Hello, world!"),
-//         }
-//     }
-// }
+impl ::std::default::Default for BackupOptions {
+    fn default() -> Self {
+        Self {
+            default_disks: vec![str!("Backup")],
+            default_dir: str!("Backups"),
+        }
+    }
+}
 
 /// The settings
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
-    // pub print: PrintOptions,
+    pub backup: BackupOptions,
 }
 
 impl Settings {

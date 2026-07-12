@@ -14,7 +14,7 @@ pub async fn handle_repair(device: String) -> Result<()> {
 
     let dev_path = match dev.path.as_deref() {
         Some(path) => path,
-        None => return Err(str!("Device path is missing.").into()),
+        None => return Err(Error::Operational(str!("Device path is missing.")).into()),
     };
 
     let repair = match dev.fstype.as_deref() {
@@ -31,10 +31,14 @@ pub async fn handle_repair(device: String) -> Result<()> {
             package: "exfatprogs",
         },
         Some(fs) => {
-            return Err(str!("Automatic repair for '{}' is not supported.", fs).into());
+            return Err(Error::Operational(str!(
+                "Automatic repair for '{}' is not supported.",
+                fs
+            ))
+            .into());
         }
         None => {
-            return Err(str!("Could not detect filesystem type.").into());
+            return Err(Error::Operational(str!("Could not detect filesystem type.")).into());
         }
     };
 
@@ -63,10 +67,10 @@ pub async fn handle_repair(device: String) -> Result<()> {
     }
 
     if code != 0 {
-        return Err(str!("Repair utility exited with code {}.", code).into());
+        return Err(Error::Operational(str!("Repair utility exited with code {}.", code)).into());
     }
 
-    println!("{} Filesystem repaired.", " ->".green().bold());
+    println!("{} Filesystem repaired.", " ->".green());
 
     Ok(())
 }
@@ -83,7 +87,7 @@ async fn ensure_tool(repair: &FsRepair) -> Result<()> {
 
     println!(
         "{} Required utility '{}' is missing.",
-        "⚠".yellow().bold(),
+        " ->".yellow(),
         repair.tool
     );
 
@@ -97,7 +101,7 @@ async fn ensure_tool(repair: &FsRepair) -> Result<()> {
         .await?;
 
     if !status.success() {
-        return Err(str!("Failed to install '{}'.", repair.tool).into());
+        return Err(Error::Operational(str!("Failed to install '{}'.", repair.tool)).into());
     }
 
     Ok(())
@@ -140,10 +144,10 @@ async fn install_package(package: &str) -> Result<()> {
             return Ok(());
         }
 
-        return Err(str!("Failed to install '{}'.", package).into());
+        return Err(Error::Operational(str!("Failed to install '{}'.", package)).into());
     }
 
-    Err(str!("Unsupported package manager.").into())
+    Err(Error::Operational(str!("Unsupported package manager.")).into())
 }
 
 async fn repair_fs(tool: &str, dev: &str) -> Result<ExitStatus> {
@@ -160,7 +164,7 @@ async fn repair_fs(tool: &str, dev: &str) -> Result<ExitStatus> {
             cmd.args(["fsck.exfat", dev]);
         }
         _ => {
-            return Err(str!("Unsupported repair utility '{}'.", tool).into());
+            return Err(Error::Operational(str!("Unsupported repair utility '{}'.", tool)).into());
         }
     }
 
