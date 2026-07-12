@@ -44,6 +44,19 @@ disk unmount <DISK_LABEL>
 disk repair --open <DISK_LABEL>
 ```
 
+### Backup a directory to target disks
+
+```bash
+# Backup current directory to a default disk defined in settings
+disk backup
+
+# Backup a specific folder to multiple target disks and manually exclude folders
+disk backup /path/to/source --target disk1 --target disk2 --exclude "tmp" --exclude "cache"
+
+# Backup and specify a custom destination path suffix on the target disk
+disk backup /path/to/source custom_destination_dir
+```
+
 Devices can be specified either by their filesystem label or by their device path:
 
 ```bash
@@ -104,7 +117,11 @@ The configuration file is located on:
 ~/.config/disk/settings.toml
 ```
 
-> Reserved for future configuration options.
+```toml
+[backup]
+default_disks = ["Backup"]
+default_dir = "Backups"
+```
  
 ## License & Feedback
 
