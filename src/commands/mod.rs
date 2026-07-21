@@ -25,7 +25,7 @@ pub fn info(label: &str, message: &str) {
 }
 
 pub fn warn(message: &str) {
-    println!("  {} {}", "!".yellow(), message);
+    println!("  {} {}", "ℹ".yellow(), message);
 }
 
 pub fn success(message: &str) {
