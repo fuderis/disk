@@ -1,4 +1,6 @@
+use super::{error, info, section, success, warn};
 use crate::{lsblk, prelude::*};
+
 use chrono::Local;
 use std::collections::HashSet;
 use tokio::process::Command;
@@ -11,6 +13,8 @@ pub async fn handle_backup(
     open_after: bool,
 ) -> Result<()> {
     let settings = Settings::get();
+
+    section("Backup Files");
 
     let source = source_path.unwrap_or_else(|| str!("."));
     let src_path = PathBuf::from(&source);
@@ -55,12 +59,7 @@ pub async fn handle_backup(
     let final_folder = format!("{src_base_name}__{timestamp}");
 
     for disk_identifier in &target_disks {
-        println!(
-            "{} {} {}",
-            "==>".blue(),
-            "Target drive:".bold(),
-            disk_identifier.blue()
-        );
+        info("Target   ", &disk_identifier.blue().to_string());
 
         let mut device = match lsblk::find(disk_identifier).await {
             Ok(dev) => dev,
@@ -75,10 +74,7 @@ pub async fn handle_backup(
         };
 
         if device.mountpoint.is_none() {
-            println!(
-                "{} Drive is not mounted. Attempting to mount...",
-                " ->".yellow()
-            );
+            warn("Drive is not mounted. Attempting to mount...");
 
             let mount_target = device
                 .path
@@ -87,7 +83,7 @@ pub async fn handle_backup(
                 .unwrap_or_else(|| device.name.clone());
 
             if let Err(e) = crate::commands::mount::handle_mount(mount_target, false).await {
-                println!("{} Could not mount '{}': {e}", " ->".red(), disk_identifier);
+                error(format!("Could not mount: {e}").into());
                 continue;
             }
 
@@ -99,7 +95,7 @@ pub async fn handle_backup(
         let mount_point = match device.mountpoint {
             Some(mp) => mp,
             None => {
-                println!("{} Drive found but mountpoint is still empty.", " ->".red());
+                error("Drive found but mountpoint is still empty.".into());
                 continue;
             }
         };
@@ -110,30 +106,32 @@ pub async fn handle_backup(
             .join(&final_folder);
 
         if let Err(e) = tokio::fs::create_dir_all(&full_dest_path).await {
-            println!(
-                "{} Failed to create directory {}: {e}",
-                " ->".red(),
-                full_dest_path.display()
+            error(
+                str!(
+                    "Failed to create directory {}: {e}",
+                    full_dest_path.display()
+                )
+                .into(),
             );
             continue;
         }
 
-        println!(
-            "{} {} -> {}",
-            "==>".blue(),
-            src_base_name.bold(),
-            full_dest_path.display().to_string().blue()
+        info(
+            "Destiny  ",
+            &str!("{}", full_dest_path.to_string_lossy().blue()),
         );
 
         let mut rsync = Command::new("rsync");
         rsync.arg("-avz");
 
         if !all_excludes.is_empty() {
-            println!(
-                "{} {} {:?}",
-                " ->".cyan(),
-                "Excluding:".bold(),
-                all_excludes
+            info(
+                "Excluding",
+                &all_excludes
+                    .iter()
+                    .map(|s| s.as_ref())
+                    .collect::<Vec<_>>()
+                    .join(", "),
             );
             for exclude_item in &all_excludes {
                 rsync.arg("--exclude").arg(exclude_item);
@@ -148,29 +146,23 @@ pub async fn handle_backup(
         rsync.arg(src_str);
         rsync.arg(format!("{}/", full_dest_path.display()));
 
+        println!();
         let status = rsync.status().await;
 
         match status {
             Ok(s) if s.success() => {
-                let target_display = device.label.as_deref().unwrap_or(&device.name);
-                println!(
-                    "{} Mirrored to {}/{}/{}/{final_folder}",
-                    " ->".green(),
-                    target_display,
-                    settings.backup.default_dir,
-                    dest_suffix
-                );
+                println!();
+                success(&str!(
+                    "Mirrored to {}",
+                    full_dest_path.to_string_lossy().blue()
+                ));
 
                 if open_after {
                     let _ = Command::new("xdg-open").arg(&full_dest_path).spawn();
                 }
             }
             _ => {
-                println!(
-                    "{} rsync failed for drive '{}'",
-                    " ->".red(),
-                    disk_identifier
-                );
+                error(str!("rsync failed for drive '{}'", disk_identifier).into());
             }
         }
     }

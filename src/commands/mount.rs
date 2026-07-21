@@ -1,14 +1,20 @@
-use crate::lsblk;
-use crate::prelude::*;
+use super::{section, success, warn};
+use crate::{lsblk, prelude::*};
 
 use std::{env, path::Path};
 use tokio::process::Command;
 
 pub async fn handle_mount(device: String, open: bool) -> Result<()> {
     let dev = lsblk::find(&device).await?;
+    let dev_path = match dev.path.as_deref() {
+        Some(path) => path,
+        None => return Err(Error::Operational(str!("Device path is missing.")).into()),
+    };
+
+    section(&format!("Mounting {}", dev_path.blue()));
 
     if let Some(mount) = dev.mountpoint.as_deref() {
-        println!("{} Already mounted at {}", " ->".green(), mount.blue());
+        success(&format!("Already mounted at {}", mount.blue()));
 
         if open {
             let _ = Command::new("xdg-open").arg(mount).spawn();
@@ -16,11 +22,6 @@ pub async fn handle_mount(device: String, open: bool) -> Result<()> {
 
         return Ok(());
     }
-
-    let dev_path = match dev.path.as_deref() {
-        Some(path) => path,
-        None => return Err(Error::Operational(str!("Device path is missing.")).into()),
-    };
 
     let mount_name = dev
         .label
@@ -40,15 +41,13 @@ pub async fn handle_mount(device: String, open: bool) -> Result<()> {
         return Err(Error::Operational(str!("Failed to create mount directory.")).into());
     }
 
-    println!("{} {} {}", "==>".blue(), "Mounting".bold(), dev_path.blue());
-
     let status = Command::new("sudo")
         .args(["timeout", "15", "mount", dev_path, &mount_path])
         .status()
         .await?;
 
     if status.success() {
-        println!("{} Mounted at {}", " ->".green(), mount_path.blue(),);
+        success(&format!("Mounted at {}", mount_path.blue()));
 
         if open {
             let _ = Command::new("xdg-open").arg(&mount_path).spawn();
@@ -64,10 +63,7 @@ pub async fn handle_mount(device: String, open: bool) -> Result<()> {
         .into());
     }
 
-    println!(
-        "{} Read-write mount failed. Trying read-only...",
-        " ->".yellow(),
-    );
+    warn("Read-write mount failed. Trying read-only...");
 
     let status = Command::new("sudo")
         .args(["timeout", "10", "mount", "-o", "ro", dev_path, &mount_path])
@@ -75,11 +71,7 @@ pub async fn handle_mount(device: String, open: bool) -> Result<()> {
         .await?;
 
     if status.success() {
-        println!(
-            "{} Mounted read-only at {}",
-            " ->".green(),
-            mount_path.blue(),
-        );
+        success(&format!("Mounted read-only at {}", mount_path.blue()));
 
         if open {
             let _ = Command::new("xdg-open").arg(&mount_path).spawn();
@@ -99,29 +91,48 @@ pub async fn handle_mount(device: String, open: bool) -> Result<()> {
 pub async fn handle_unmount(device: String) -> Result<()> {
     let dev = lsblk::find(&device).await?;
 
+    let mountpoint = match dev.mountpoint.clone() {
+        Some(mp) => mp,
+        None => {
+            return Err(Error::Operational(format!("Device '{}' is not mounted.", device)).into());
+        }
+    };
+
     let dev_path = match dev.path.as_deref() {
         Some(path) => path,
         None => return Err(Error::Operational(str!("Device path is missing.")).into()),
     };
 
-    let mountpoint = dev.mountpoint.clone();
+    section(&format!("Unmounting {}", dev_path.blue()));
 
-    let status = Command::new("sudo")
+    let output = Command::new("sudo")
         .args(["umount", dev_path])
-        .status()
+        .output()
         .await?;
 
-    if !status.success() {
-        return Err(Error::Operational(str!("Failed to unmount '{}'.", device)).into());
-    }
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
 
-    if let Some(path) = mountpoint {
-        if path.starts_with("/run/media/") && Path::new(&path).exists() {
-            let _ = Command::new("sudo").args(["rmdir", &path]).status().await;
+        if stderr.contains("not mounted") {
+            return Err(Error::Operational(format!("Device '{}' is not mounted.", device)).into());
         }
+
+        return Err(Error::Operational(format!(
+            "Failed to unmount '{}': {}",
+            device,
+            stderr.trim()
+        ))
+        .into());
     }
 
-    println!("{} Unmounted {}", " ->".green(), dev_path.blue(),);
+    if mountpoint.starts_with("/run/media/") && Path::new(&mountpoint).exists() {
+        let _ = Command::new("sudo")
+            .args(["rmdir", &mountpoint])
+            .status()
+            .await;
+    }
+
+    success("Unmounted");
 
     Ok(())
 }

@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 use prelude::*;
 
 pub const APP_NAME: &str = "disk";
-pub const APP_VERSION: &str = "0.1.1";
+pub const APP_VERSION: &str = "0.2.0";
 
 #[derive(Parser, Debug)]
 #[command(
@@ -86,7 +86,7 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     let result = match cli.command {
-        Commands::List => cmds::list::handle_list().await,
+        Commands::List => cmds::uuid::handle_list().await,
         Commands::Uuid { device } => cmds::uuid::handle_uuid(device).await,
         Commands::Mount { open, device } => cmds::mount::handle_mount(device, open).await,
         Commands::Unmount { device } => cmds::mount::handle_unmount(device).await,
@@ -103,7 +103,7 @@ async fn main() -> Result<()> {
     };
 
     if let Err(e) = result {
-        println!("{} {e}", " ->".red());
+        cmds::error(e);
     }
 
     Ok(())

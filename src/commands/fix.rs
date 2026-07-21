@@ -1,5 +1,5 @@
-use crate::lsblk;
-use crate::prelude::*;
+use super::{info, section, success, warn};
+use crate::{lsblk, prelude::*};
 
 use std::process::ExitStatus;
 use tokio::process::Command;
@@ -11,11 +11,12 @@ struct FsRepair {
 
 pub async fn handle_repair(device: String) -> Result<()> {
     let dev = lsblk::find(&device).await?;
-
     let dev_path = match dev.path.as_deref() {
         Some(path) => path,
         None => return Err(Error::Operational(str!("Device path is missing.")).into()),
     };
+
+    section(&str!("Repairing {}", dev_path.blue().to_string()));
 
     let repair = match dev.fstype.as_deref() {
         Some("ntfs") => FsRepair {
@@ -42,23 +43,15 @@ pub async fn handle_repair(device: String) -> Result<()> {
         }
     };
 
-    println!(
-        "{} {}",
-        "==>".blue(),
-        format!("Detected filesystem: {}", dev.fstype.as_ref().unwrap()).bold()
+    info(
+        "Filesystem",
+        &dev.fstype.as_ref().unwrap().blue().to_string(),
     );
+    println!();
 
     ensure_tool(&repair).await?;
 
-    println!(
-        "{} {} {}",
-        "==>".blue(),
-        "Repairing".bold(),
-        dev_path.blue()
-    );
-
     let status = repair_fs(repair.tool, dev_path).await?;
-
     let mut code = status.code().unwrap_or(1);
 
     // e2fsck returns 1 when errors were fixed successfully.
@@ -70,7 +63,8 @@ pub async fn handle_repair(device: String) -> Result<()> {
         return Err(Error::Operational(str!("Repair utility exited with code {}.", code)).into());
     }
 
-    println!("{} Filesystem repaired.", " ->".green());
+    println!();
+    success("Filesystem repaired.");
 
     Ok(())
 }
@@ -85,13 +79,8 @@ async fn ensure_tool(repair: &FsRepair) -> Result<()> {
         return Ok(());
     }
 
-    println!(
-        "{} Required utility '{}' is missing.",
-        " ->".yellow(),
-        repair.tool
-    );
-
-    println!("{} Installing {}...", "==>".blue(), repair.package.blue());
+    warn(&str!("Required utility '{}' is missing.", repair.tool));
+    info("Installing", &str!("{}...", repair.package.blue()));
 
     install_package(repair.package).await?;
 
